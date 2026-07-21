@@ -146,6 +146,15 @@ function buildAssetProxyUrl(
   referer?: string,
   kind: 'segment' | 'key' | 'map' = inferAssetKind(upstreamUrl),
 ): string {
+  // 🌐 如果设置了外部 Worker 代理，TS 分片走 CF Worker 而非 DecoTV 自身
+  // 解决海外用户直连中国 CDN 失败的问题
+  const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
+  if (tvboxProxyUrl) {
+    const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
+    proxyUrl.searchParams.set('url', upstreamUrl);
+    return proxyUrl.toString();
+  }
+
   const signature = signM3U8ProxyRequest(upstreamUrl, referer);
   if (!signature) return upstreamUrl;
 
