@@ -261,7 +261,21 @@ export async function GET(req: NextRequest) {
 
     let globalSpiderJar: string;
 
-    if (publicBaseUrl && jarMode !== 'remote' && jarMode !== 'direct') {
+    // 🌐 TVBox Proxy 模式：站点 API 指向 CF Worker
+    // 在环境变量中设置 NEXT_PUBLIC_TVBOX_PROXY_URL 即可启用
+    // 例如: NEXT_PUBLIC_TVBOX_PROXY_URL=https://decotv-spider-worker.hharley.workers.dev
+    const TVBOX_PROXY_URL = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '')
+      .trim()
+      .replace(/\/$/, '');
+
+    if (TVBOX_PROXY_URL && jarMode !== 'direct') {
+      // proxy 模式下蜘蛛 JAR 走远程直连（不通过 proxy，因为 Proxy Worker 没有 JAR 缓存）
+      if (jarInfo.success && jarInfo.source !== 'fallback') {
+        globalSpiderJar = `${jarInfo.source};md5;${jarInfo.md5}`;
+      } else {
+        globalSpiderJar = `${baseUrl}/api/proxy/spider.jar?md5=${jarInfo.md5};md5;${jarInfo.md5}`;
+      }
+    } else if (publicBaseUrl && jarMode !== 'remote' && jarMode !== 'direct') {
       // 配置地址能被客户端访问时，优先返回同源 JAR 代理。
       // 这避免 Vercel/服务器能下载 GitHub JAR，但电视盒子客户端下载不了的问题。
       globalSpiderJar = `${baseUrl}/api/proxy/spider.jar?md5=${jarInfo.md5};md5;${jarInfo.md5}`;
@@ -370,7 +384,8 @@ export async function GET(req: NextRequest) {
 
         // 替换为智能搜索代理端点
         // TVBox会在URL后拼接搜索关键词，格式：api + wd={keyword}
-        site.api = `${baseUrl}/api/tvbox/search?${proxySearchParams.toString()}`;
+        const proxyBase = TVBOX_PROXY_URL || baseUrl;
+        site.api = `${proxyBase}/api/tvbox/search?${proxySearchParams.toString()}`;
 
         console.log(`[TVBox] Enabled smart proxy for source: ${s.key}`);
       }
