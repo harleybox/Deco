@@ -179,6 +179,18 @@ function rewriteUriAttribute(
 ): string {
   return line.replace(/URI="([^"]+)"/, (match, uri) => {
     const resolvedUrl = resolveUrl(baseUrl, uri);
+    
+    // 🌐 如果设置了外部 Worker 代理，TS/Key 走 CF Worker
+    // 优先于 M3U8_DIRECT_MEDIA 设置，解决海外播放问题
+    if (target === 'asset') {
+      const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
+      if (tvboxProxyUrl) {
+        const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
+        proxyUrl.searchParams.set('url', resolvedUrl);
+        return match.replace(uri, proxyUrl.toString());
+      }
+    }
+    
     const rewrittenUrl =
       target === 'playlist'
         ? buildProxyUrl(request, resolvedUrl, referer)
@@ -287,6 +299,13 @@ function rewriteVariantPlaylist(
 
       if (line && !line.startsWith('#')) {
         const resolvedUrl = resolveUrl(baseUrl, line);
+        // 🌐 优先检查外部 Worker 代理
+        const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
+        if (tvboxProxyUrl) {
+          const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
+          proxyUrl.searchParams.set('url', resolvedUrl);
+          return proxyUrl.toString();
+        }
         return proxyMedia
           ? buildAssetProxyUrl(request, resolvedUrl, referer, 'segment')
           : resolvedUrl;
