@@ -384,8 +384,22 @@ export async function GET(req: NextRequest) {
 
         // 替换为智能搜索代理端点
         // TVBox会在URL后拼接搜索关键词，格式：api + wd={keyword}
-        const proxyBase = TVBOX_PROXY_URL || baseUrl;
-        site.api = `${proxyBase}/api/tvbox/search?${proxySearchParams.toString()}`;
+        // 🌐 配置了外部 Worker 时，改用 Worker 的 /api/search/{源key} 路由（v2 版接口）
+        const TVBOX_PROXY_TOKEN = (
+          process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN || ''
+        ).trim();
+        if (TVBOX_PROXY_URL) {
+          const workerApi = new URL(
+            `/api/search/${encodeURIComponent(s.key)}`,
+            TVBOX_PROXY_URL,
+          );
+          if (TVBOX_PROXY_TOKEN) {
+            workerApi.searchParams.set('token', TVBOX_PROXY_TOKEN);
+          }
+          site.api = workerApi.toString();
+        } else {
+          site.api = `${baseUrl}/api/tvbox/search?${proxySearchParams.toString()}`;
+        }
 
         console.log(`[TVBox] Enabled smart proxy for source: ${s.key}`);
       }

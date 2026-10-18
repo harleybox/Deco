@@ -140,20 +140,38 @@ function pushUnique<T>(items: T[], item: T) {
   }
 }
 
+/**
+ * 🌐 外部 Cloudflare Worker 代理
+ * 设置 NEXT_PUBLIC_TVBOX_PROXY_URL（+ 可选 NEXT_PUBLIC_TVBOX_PROXY_TOKEN）
+ * 后，TS 分片和 AES 密钥会改写为走该 Worker，解决海外直连国内 CDN 失败。
+ * 未配置时返回 null，走 DecoTV 原有逻辑。
+ */
+function buildExternalWorkerProxyUrl(upstreamUrl: string): string | null {
+  const base = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (!base) return null;
+
+  try {
+    const proxyUrl = new URL('/api/proxy', base);
+    const token = (process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN || '').trim();
+    if (token) proxyUrl.searchParams.set('token', token);
+    proxyUrl.searchParams.set('url', upstreamUrl);
+    return proxyUrl.toString();
+  } catch {
+    return null;
+  }
+}
+
 function buildAssetProxyUrl(
   request: Request,
   upstreamUrl: string,
   referer?: string,
   kind: 'segment' | 'key' | 'map' = inferAssetKind(upstreamUrl),
 ): string {
-  // 🌐 如果设置了外部 Worker 代理，TS 分片走 CF Worker 而非 DecoTV 自身
-  // 解决海外用户直连中国 CDN 失败的问题
-  const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
-  if (tvboxProxyUrl) {
-    const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
-    proxyUrl.searchParams.set('url', upstreamUrl);
-    return proxyUrl.toString();
-  }
+  // 🌐 外部 Worker 代理优先
+  const external = buildExternalWorkerProxyUrl(upstreamUrl);
+  if (external) return external;
 
   const signature = signM3U8ProxyRequest(upstreamUrl, referer);
   if (!signature) return upstreamUrl;
@@ -183,11 +201,9 @@ function rewriteUriAttribute(
     // 🌐 如果设置了外部 Worker 代理，TS/Key 走 CF Worker
     // 优先于 M3U8_DIRECT_MEDIA 设置，解决海外播放问题
     if (target === 'asset') {
-      const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
-      if (tvboxProxyUrl) {
-        const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
-        proxyUrl.searchParams.set('url', resolvedUrl);
-        return match.replace(uri, proxyUrl.toString());
+      const external = buildExternalWorkerProxyUrl(resolvedUrl);
+      if (external) {
+        return match.replace(uri, external);
       }
     }
     
@@ -300,12 +316,8 @@ function rewriteVariantPlaylist(
       if (line && !line.startsWith('#')) {
         const resolvedUrl = resolveUrl(baseUrl, line);
         // 🌐 优先检查外部 Worker 代理
-        const tvboxProxyUrl = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '').trim().replace(/\/$/, '');
-        if (tvboxProxyUrl) {
-          const proxyUrl = new URL('/api/proxy', tvboxProxyUrl);
-          proxyUrl.searchParams.set('url', resolvedUrl);
-          return proxyUrl.toString();
-        }
+        const external = buildExternalWorkerProxyUrl(resolvedUrl);
+        if (external) return external;
         return proxyMedia
           ? buildAssetProxyUrl(request, resolvedUrl, referer, 'segment')
           : resolvedUrl;
