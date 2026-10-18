@@ -157,7 +157,18 @@ function buildExternalWorkerProxyUrl(upstreamUrl: string): string | null {
   if (!base) return null;
 
   try {
-    const proxyUrl = new URL('/api/proxy', base);
+    const workerOrigin = new URL(base).origin;
+
+    // 防止双重代理：上游地址本身已经是这个 Worker 的代理地址时直接放行。
+    // Worker 端会把 vod_play_url 和 m3u8 内部地址都改写成自己的 /api/proxy，
+    // 这里再包一层会变成 Worker→Worker，而 Worker 的域名白名单不接受自己的域名。
+    try {
+      if (new URL(upstreamUrl).origin === workerOrigin) return null;
+    } catch {
+      // upstreamUrl 不是合法 URL，继续按需包装
+    }
+
+    const proxyUrl = new URL('/api/proxy', workerOrigin);
     const token = (
       process.env.TVBOX_PROXY_TOKEN ||
       process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN ||
