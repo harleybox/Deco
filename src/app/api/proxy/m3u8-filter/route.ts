@@ -147,14 +147,22 @@ function pushUnique<T>(items: T[], item: T) {
  * 未配置时返回 null，走 DecoTV 原有逻辑。
  */
 function buildExternalWorkerProxyUrl(upstreamUrl: string): string | null {
-  const base = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '')
+  const base = (
+    process.env.TVBOX_PROXY_URL ||
+    process.env.NEXT_PUBLIC_TVBOX_PROXY_URL ||
+    ''
+  )
     .trim()
     .replace(/\/$/, '');
   if (!base) return null;
 
   try {
     const proxyUrl = new URL('/api/proxy', base);
-    const token = (process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN || '').trim();
+    const token = (
+      process.env.TVBOX_PROXY_TOKEN ||
+      process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN ||
+      ''
+    ).trim();
     if (token) proxyUrl.searchParams.set('token', token);
     proxyUrl.searchParams.set('url', upstreamUrl);
     return proxyUrl.toString();

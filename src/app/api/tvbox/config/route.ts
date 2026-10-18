@@ -262,9 +262,14 @@ export async function GET(req: NextRequest) {
     let globalSpiderJar: string;
 
     // 🌐 TVBox Proxy 模式：站点 API 指向 CF Worker
-    // 在环境变量中设置 NEXT_PUBLIC_TVBOX_PROXY_URL 即可启用
-    // 例如: NEXT_PUBLIC_TVBOX_PROXY_URL=https://decotv-spider-worker.hharley.workers.dev
-    const TVBOX_PROXY_URL = (process.env.NEXT_PUBLIC_TVBOX_PROXY_URL || '')
+    // 环境变量（服务端即可，无需 NEXT_PUBLIC_ 前缀）：
+    //   TVBOX_PROXY_URL   = https://decotv-spider-worker.qwerter-deco.workers.dev
+    //   TVBOX_PROXY_TOKEN = decotv-hharley-2026   ← 密钥，务必不要加 NEXT_PUBLIC_
+    const TVBOX_PROXY_URL = (
+      process.env.TVBOX_PROXY_URL ||
+      process.env.NEXT_PUBLIC_TVBOX_PROXY_URL ||
+      ''
+    )
       .trim()
       .replace(/\/$/, '');
 
@@ -386,7 +391,9 @@ export async function GET(req: NextRequest) {
         // TVBox会在URL后拼接搜索关键词，格式：api + wd={keyword}
         // 🌐 配置了外部 Worker 时，改用 Worker 的 /api/search/{源key} 路由（v2 版接口）
         const TVBOX_PROXY_TOKEN = (
-          process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN || ''
+          process.env.TVBOX_PROXY_TOKEN ||
+          process.env.NEXT_PUBLIC_TVBOX_PROXY_TOKEN ||
+          ''
         ).trim();
         if (TVBOX_PROXY_URL) {
           const workerApi = new URL(
